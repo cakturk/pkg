@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"os"
@@ -12,19 +11,19 @@ import (
 var (
 	start   = flag.Duration("start", 0, "indicates the starting point")
 	end     = flag.Duration("end", -1, "indicates where to stop")
-	inFile  = flag.String("i", "", "input wav FILE")
-	outFile = flag.String("o", "", "put newly cropped portion into this FILE: - indicates stdout")
+	inFile  = flag.String("i", "", "input wav FILE: `-` implies stdin")
+	outFile = flag.String("o", "", "put newly cropped portion into this FILE: `-` implies stdout")
 )
 
 func run() error {
 	var err error
 	flag.Parse()
-	if *inFile == "" {
-		return errors.New("no input file specified")
-	}
-	inf, err := os.Open(*inFile)
-	if err != nil {
-		return err
+	inf := os.Stdin
+	if *inFile != "" && *inFile != "-" {
+		inf, err = os.Open(*inFile)
+		if err != nil {
+			return err
+		}
 	}
 	defer inf.Close()
 	ouf := os.Stdout
