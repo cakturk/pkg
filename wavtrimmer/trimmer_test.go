@@ -1,4 +1,4 @@
-package trimmer
+package wavtrimmer
 
 import (
 	"io"
