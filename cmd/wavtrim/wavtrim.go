@@ -26,6 +26,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer inf.Close()
 	ouf := os.Stdout
 	if *outFile != "" && *outFile != "-" {
 		ouf, err = os.Open(*inFile)
@@ -33,6 +34,7 @@ func run() error {
 			return err
 		}
 	}
+	defer ouf.Close()
 	return wavtrimmer.Trim(inf, *start, *end, ouf)
 }
 
