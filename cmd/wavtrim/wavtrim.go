@@ -37,6 +37,7 @@ func run() error {
 }
 
 func main() {
+	log.SetFlags(log.Lshortfile)
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
