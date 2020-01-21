@@ -15,12 +15,10 @@ func (f *RIFFHdr) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
 
-	_, _ = io.ReadFull(er, f.ChunkID[:])
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(f.ChunkID[:])
+	er.ReadFull(p)
 	f.ChunkSize = binary.LittleEndian.Uint32(p)
-
-	_, _ = io.ReadFull(er, f.Fmt[:])
-
+	er.ReadFull(f.Fmt[:])
 	return er.err
 }
 
@@ -39,26 +37,26 @@ func (f *FmtChunk) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
 
-	_, _ = io.ReadFull(er, f.SubChunkID[:])
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(f.SubChunkID[:])
+	er.ReadFull(p)
 	f.SubChunkSize = binary.LittleEndian.Uint32(p)
 
-	_, _ = io.ReadFull(er, p[:2]) // AudioFormat
+	er.ReadFull(p[:2]) // AudioFormat
 	f.AudioFormat = binary.LittleEndian.Uint16(p[:2])
 
-	_, _ = io.ReadFull(er, p[:2]) // NumChans
+	er.ReadFull(p[:2]) // NumChans
 	f.NumChans = binary.LittleEndian.Uint16(p[:2])
 
-	_, _ = io.ReadFull(er, p) // SampleRate
+	er.ReadFull(p) // SampleRate
 	f.SampleRate = binary.LittleEndian.Uint32(p)
 
-	_, _ = io.ReadFull(er, p) // ByteRate
+	er.ReadFull(p) // ByteRate
 	f.ByteRate = binary.LittleEndian.Uint32(p)
 
-	_, _ = io.ReadFull(er, p[:2]) // BlockAlign
+	er.ReadFull(p[:2]) // BlockAlign
 	f.BlockAlign = binary.LittleEndian.Uint16(p[:2])
 
-	_, _ = io.ReadFull(er, p[:2]) // BitsPerSample
+	er.ReadFull(p[:2]) // BitsPerSample
 	f.BitsPerSample = binary.LittleEndian.Uint16(p[:2])
 
 	return er.err
@@ -74,8 +72,8 @@ func (d *DataChunk) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
 
-	_, _ = io.ReadFull(er, d.SubChunkID[:])
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(d.SubChunkID[:])
+	er.ReadFull(p)
 	d.SubChunkSize = binary.LittleEndian.Uint32(p)
 
 	return er.err
@@ -91,10 +89,10 @@ func (l *ListChunk) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
 
-	_, _ = io.ReadFull(er, l.SubChunkID[:])
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(l.SubChunkID[:])
+	er.ReadFull(p)
 	l.SubChunkSize = binary.LittleEndian.Uint32(p)
-	_, _ = io.ReadFull(er, l.TypeID[:])
+	er.ReadFull(l.TypeID[:])
 	return er.err
 }
 
@@ -108,12 +106,12 @@ func (i *InfoChunk) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
 
-	_, _ = io.ReadFull(er, i.ID[:])
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(i.ID[:])
+	er.ReadFull(p)
 	i.Size = binary.LittleEndian.Uint32(p)
 
 	p = make([]byte, i.Size)
-	_, _ = io.ReadFull(er, p)
+	er.ReadFull(p)
 
 	// Throw away terminating NUL.
 	if i.Size > 0 && p[i.Size-1] == '\x00' {
@@ -138,4 +136,9 @@ func (er *errReader) Read(p []byte) (n int, err error) {
 	}
 	n, er.err = er.r.Read(p)
 	return n, nil
+}
+
+func (er *errReader) ReadFull(buf []byte) (n int) {
+	n, _ = io.ReadFull(er.r, buf)
+	return n
 }
