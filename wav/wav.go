@@ -22,6 +22,17 @@ func (f *RIFFHdr) Unpack(r io.Reader) error {
 	return er.err
 }
 
+func (f *RIFFHdr) Pack(w io.Writer) error {
+	ew := &errWriter{w: w}
+	p := make([]byte, 4)
+
+	ew.write(f.ChunkID[:])
+	binary.LittleEndian.PutUint32(p, f.ChunkSize)
+	ew.write(p)
+	ew.write(f.Fmt[:])
+	return ew.err
+}
+
 type FmtChunk struct {
 	SubChunkID    [4]byte // "fmt "
 	SubChunkSize  uint32
@@ -31,6 +42,29 @@ type FmtChunk struct {
 	ByteRate      uint32
 	BlockAlign    uint16
 	BitsPerSample uint16
+}
+
+func (f *FmtChunk) Pack(w io.Writer) error {
+	ew := &errWriter{w: w}
+	p := make([]byte, 4)
+
+	ew.write(f.SubChunkID[:])
+	binary.LittleEndian.PutUint32(p, f.SubChunkSize)
+	ew.write(p)
+	binary.LittleEndian.PutUint16(p[:2], f.AudioFormat)
+	ew.write(p)
+	binary.LittleEndian.PutUint16(p[:2], f.NumChans)
+	ew.write(p)
+	binary.LittleEndian.PutUint32(p, f.SampleRate)
+	ew.write(p)
+	binary.LittleEndian.PutUint32(p, f.ByteRate)
+	ew.write(p)
+	binary.LittleEndian.PutUint16(p[:2], f.BlockAlign)
+	ew.write(p)
+	binary.LittleEndian.PutUint16(p[:2], f.BitsPerSample)
+	ew.write(p)
+
+	return ew.err
 }
 
 func (f *FmtChunk) Unpack(r io.Reader) error {
@@ -163,4 +197,16 @@ func (er *errReader) Read(p []byte) (n int, err error) {
 func (er *errReader) ReadFull(buf []byte) (n int) {
 	n, _ = io.ReadFull(er, buf)
 	return n
+}
+
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (ew *errWriter) write(buf []byte) {
+	if ew.err != nil {
+		return
+	}
+	_, ew.err = ew.w.Write(buf)
 }
