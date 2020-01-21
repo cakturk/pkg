@@ -83,6 +83,8 @@ type ListChunk struct {
 	SubChunkID   [4]byte // LIST
 	SubChunkSize uint32
 	TypeID       [4]byte // INFO
+
+	SubChunks []InfoChunk
 }
 
 func (l *ListChunk) Unpack(r io.Reader) error {
@@ -93,6 +95,21 @@ func (l *ListChunk) Unpack(r io.Reader) error {
 	er.ReadFull(p)
 	l.SubChunkSize = binary.LittleEndian.Uint32(p)
 	er.ReadFull(l.TypeID[:])
+
+	if string(l.TypeID[:]) != "INFO" {
+		return er.err
+	}
+
+	readBytes := uint32(0)
+	totalBytes := l.SubChunkSize - uint32(len(l.TypeID))
+	for readBytes < totalBytes {
+		var ic InfoChunk
+		if err := ic.Unpack(r); err != nil {
+			return err
+		}
+		l.SubChunks = append(l.SubChunks, ic)
+		readBytes += uint32(ic.RawSize())
+	}
 	return er.err
 }
 
@@ -122,6 +139,11 @@ func (i *InfoChunk) Unpack(r io.Reader) error {
 	return er.err
 }
 
+func (i *InfoChunk) RawSize() int {
+	// fields + txt size + NUL terminator
+	return 8 + len(i.Text) + 1
+}
+
 type errReader struct {
 	r   io.Reader
 	err error
@@ -139,6 +161,6 @@ func (er *errReader) Read(p []byte) (n int, err error) {
 }
 
 func (er *errReader) ReadFull(buf []byte) (n int) {
-	n, _ = io.ReadFull(er.r, buf)
+	n, _ = io.ReadFull(er, buf)
 	return n
 }
