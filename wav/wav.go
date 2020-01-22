@@ -113,6 +113,15 @@ func (d *DataChunk) Unpack(r io.Reader) error {
 	return er.err
 }
 
+func (d *DataChunk) Pack(w io.Writer) error {
+	ew := &errWriter{w: w}
+	p := make([]byte, 4)
+	ew.write(d.SubChunkID[:])
+	binary.LittleEndian.PutUint32(p, d.SubChunkSize)
+	ew.write(p)
+	return ew.err
+}
+
 type ListChunk struct {
 	SubChunkID   [4]byte // LIST
 	SubChunkSize uint32
@@ -147,6 +156,33 @@ func (l *ListChunk) Unpack(r io.Reader) error {
 	return er.err
 }
 
+func (l *ListChunk) Pack(w io.Writer) error {
+	ew := &errWriter{w: w}
+	p := make([]byte, 4)
+	ew.write(l.SubChunkID[:])
+
+	l.SubChunkSize = uint32(l.RawSize())
+	binary.LittleEndian.PutUint32(p, l.SubChunkSize)
+	ew.write(p)
+
+	ew.write(l.TypeID[:])
+
+	for _, sc := range l.SubChunks {
+		if err := sc.Pack(w); err != nil {
+			return err
+		}
+	}
+	return ew.err
+}
+
+func (l *ListChunk) RawSize() int {
+	total := 0
+	for _, sc := range l.SubChunks {
+		total += sc.RawSize()
+	}
+	return total + 8 // header data
+}
+
 type InfoChunk struct {
 	ID   [4]byte
 	Size uint32
@@ -171,6 +207,20 @@ func (i *InfoChunk) Unpack(r io.Reader) error {
 	i.Text = p[:i.Size]
 
 	return er.err
+}
+
+func (i *InfoChunk) Pack(w io.Writer) error {
+	ew := &errWriter{w: w}
+	p := make([]byte, 4)
+	ew.write(i.ID[:])
+	binary.LittleEndian.PutUint32(p, i.Size)
+	ew.write(p)
+
+	copy(p, i.Text)
+	p = append(p, '\x00') // NUL terminate
+	ew.write(p)
+
+	return ew.err
 }
 
 func (i *InfoChunk) RawSize() int {
