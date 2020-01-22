@@ -3,6 +3,7 @@ package wav
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"unsafe"
@@ -51,6 +52,30 @@ func TestUnpackFmt(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Errorf("%#+v", fmtCk)
+}
+
+func TestPackFmt(t *testing.T) {
+	b, err := ioutil.ReadFile("fmtchunk.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := bytes.NewReader(b)
+	var fmt FmtChunk
+
+	if err := fmt.Unpack(r); err != nil {
+		t.Fatal(err)
+	}
+
+	buf := &bytes.Buffer{}
+	if err := fmt.Pack(buf); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.Bytes()
+	if !bytes.Equal(got, b) {
+		t.Errorf("got: %#02v - %d,\n\t   want: %#02v - %d",
+			got, len(got), b, len(b),
+		)
+	}
 }
 
 func TestUnpackData(t *testing.T) {

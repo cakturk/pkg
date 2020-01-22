@@ -52,17 +52,17 @@ func (f *FmtChunk) Pack(w io.Writer) error {
 	binary.LittleEndian.PutUint32(p, f.SubChunkSize)
 	ew.write(p)
 	binary.LittleEndian.PutUint16(p[:2], f.AudioFormat)
-	ew.write(p)
+	ew.write(p[:2])
 	binary.LittleEndian.PutUint16(p[:2], f.NumChans)
-	ew.write(p)
+	ew.write(p[:2])
 	binary.LittleEndian.PutUint32(p, f.SampleRate)
 	ew.write(p)
 	binary.LittleEndian.PutUint32(p, f.ByteRate)
 	ew.write(p)
 	binary.LittleEndian.PutUint16(p[:2], f.BlockAlign)
-	ew.write(p)
+	ew.write(p[:2])
 	binary.LittleEndian.PutUint16(p[:2], f.BitsPerSample)
-	ew.write(p)
+	ew.write(p[:2])
 
 	return ew.err
 }
