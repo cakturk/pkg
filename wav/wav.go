@@ -194,9 +194,8 @@ func (er *errReader) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (er *errReader) ReadFull(buf []byte) (n int) {
-	n, _ = io.ReadFull(er, buf)
-	return n
+func (er *errReader) ReadFull(buf []byte) {
+	_, _ = io.ReadFull(er, buf)
 }
 
 type errWriter struct {
