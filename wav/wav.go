@@ -2,6 +2,7 @@ package wav
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -124,7 +125,7 @@ func (d *DataChunk) Pack(w io.Writer) error {
 
 type ListChunk struct {
 	SubChunkID   [4]byte // LIST
-	SubChunkSize uint32
+	SubChunkSize uint32  // payload size after this point
 	TypeID       [4]byte // INFO
 
 	SubChunks []InfoChunk
@@ -140,7 +141,7 @@ func (l *ListChunk) Unpack(r io.Reader) error {
 	er.ReadFull(l.TypeID[:])
 
 	if string(l.TypeID[:]) != "INFO" {
-		return er.err
+		return fmt.Errorf("wav: unsupported subchunk id: %v", string(l.SubChunkID[:]))
 	}
 
 	readBytes := uint32(0)
@@ -148,7 +149,7 @@ func (l *ListChunk) Unpack(r io.Reader) error {
 	for readBytes < totalBytes {
 		var ic InfoChunk
 		if err := ic.Unpack(r); err != nil {
-			return err
+			return fmt.Errorf("list.Unpack: %w", err)
 		}
 		l.SubChunks = append(l.SubChunks, ic)
 		readBytes += uint32(ic.RawSize())
@@ -161,7 +162,7 @@ func (l *ListChunk) Pack(w io.Writer) error {
 	p := make([]byte, 4)
 	ew.write(l.SubChunkID[:])
 
-	l.SubChunkSize = uint32(l.RawSize())
+	l.SubChunkSize = uint32(l.ChunkSize())
 	binary.LittleEndian.PutUint32(p, l.SubChunkSize)
 	ew.write(p)
 
@@ -175,12 +176,12 @@ func (l *ListChunk) Pack(w io.Writer) error {
 	return ew.err
 }
 
-func (l *ListChunk) RawSize() int {
+func (l *ListChunk) ChunkSize() int {
 	total := 0
 	for _, sc := range l.SubChunks {
 		total += sc.RawSize()
 	}
-	return total + 8 // header data
+	return total + 4 // 4 bytes for TypeID: INFO
 }
 
 type InfoChunk struct {
@@ -213,12 +214,11 @@ func (i *InfoChunk) Pack(w io.Writer) error {
 	ew := &errWriter{w: w}
 	p := make([]byte, 4)
 	ew.write(i.ID[:])
-	binary.LittleEndian.PutUint32(p, i.Size)
+	binary.LittleEndian.PutUint32(p, uint32(len(i.Text)+1))
 	ew.write(p)
 
-	copy(p, i.Text)
-	p = append(p, '\x00') // NUL terminate
-	ew.write(p)
+	i.Text = append(i.Text, '\x00') // NUL terminate
+	ew.write(i.Text)
 
 	return ew.err
 }

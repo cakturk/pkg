@@ -34,25 +34,6 @@ func TestPackRIFF2(t *testing.T) {
 	}
 }
 
-func TestUnpackFmt(t *testing.T) {
-	f, err := os.Open("smp.wav")
-	if err != nil {
-		t.Fatal(err)
-	}
-	skip := int64(unsafe.Sizeof(RIFFHdr{}))
-	if skip != 12 {
-		t.Errorf("got: %d, want: %d", skip, 12)
-	}
-	if _, err := f.Seek(skip, io.SeekStart); err != nil {
-		t.Fatal(err)
-	}
-	var fmtCk FmtChunk
-	if err := fmtCk.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Errorf("%#+v", fmtCk)
-}
-
 func TestPackFmt(t *testing.T) {
 	b, err := ioutil.ReadFile("fmtchunk.golden")
 	if err != nil {
@@ -101,6 +82,29 @@ func TestPackDataChunk(t *testing.T) {
 	}
 }
 
+func TestPackListChunk(t *testing.T) {
+	b, err := ioutil.ReadFile("listchunk.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := bytes.NewReader(b)
+	var list ListChunk
+
+	if err := list.Unpack(r); err != nil {
+		t.Fatal(err)
+	}
+
+	buf := &bytes.Buffer{}
+	if err := list.Pack(buf); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.Bytes(); !bytes.Equal(got, b) {
+		t.Errorf("\n got: %#02v - %d,\n\nwant: %#02v - %d",
+			got, len(got), b, len(b),
+		)
+	}
+}
+
 // func TestUnpackRIFF(t *testing.T) {
 // 	f, err := os.Open("smp.wav")
 // 	if err != nil {
@@ -112,6 +116,25 @@ func TestPackDataChunk(t *testing.T) {
 // 		t.Fatal(err)
 // 	}
 // 	t.Errorf("%#+v", riff)
+// }
+
+// func TestUnpackFmt(t *testing.T) {
+// 	f, err := os.Open("smp.wav")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	skip := int64(unsafe.Sizeof(RIFFHdr{}))
+// 	if skip != 12 {
+// 		t.Errorf("got: %d, want: %d", skip, 12)
+// 	}
+// 	if _, err := f.Seek(skip, io.SeekStart); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var fmtCk FmtChunk
+// 	if err := fmtCk.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Errorf("%#+v", fmtCk)
 // }
 
 // func TestPackRIFF(t *testing.T) {
@@ -179,7 +202,7 @@ func TestUnpackList(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range lck.SubChunks {
-		t.Errorf("%s:\t%s", c.ID, c.Text)
+		t.Logf("%s:\t%s", c.ID, c.Text)
 	}
 	// var ick InfoChunk
 	// if err := ick.Unpack(f); err != nil {
