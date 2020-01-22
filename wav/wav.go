@@ -6,6 +6,13 @@ import (
 	"io"
 )
 
+type WavFile struct {
+	Hdr  RIFFHdr
+	Fmt  FmtChunk
+	Data DataChunk
+	List *ListChunk
+}
+
 type RIFFHdr struct {
 	ChunkID   [4]byte // RIFF
 	ChunkSize uint32
@@ -21,6 +28,44 @@ func (f *RIFFHdr) Unpack(r io.Reader) error {
 	f.ChunkSize = binary.LittleEndian.Uint32(p)
 	er.ReadFull(f.Fmt[:])
 	return er.err
+}
+
+func Decode(r io.ReadSeeker) (*WavFile, error) {
+	w := &WavFile{}
+	if err := w.Hdr.Unpack(r); err != nil {
+		return nil, err
+	}
+	if err := w.Fmt.Unpack(r); err != nil {
+		return nil, err
+	}
+	if err := w.Data.Unpack(r); err != nil {
+		return nil, err
+	}
+	var (
+		curOff int64
+		endOff int64
+		err    error
+	)
+	if curOff, err = r.Seek(0, io.SeekCurrent); err != nil {
+		return nil, err
+	}
+	if endOff, err = r.Seek(0, io.SeekEnd); err != nil {
+		return nil, err
+	}
+	if curOff+int64(w.Data.SubChunkSize) >= endOff {
+		return w, nil // no list chunks available
+	}
+	curOff = curOff + int64(w.Data.SubChunkSize)
+	if _, err := r.Seek(curOff, io.SeekStart); err != nil {
+		return nil, err
+	}
+	lck := &ListChunk{}
+	if err := lck.Unpack(r); err != nil {
+		return nil, err
+	}
+	w.List = lck
+
+	return w, nil
 }
 
 func (f *RIFFHdr) Pack(w io.Writer) error {

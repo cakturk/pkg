@@ -9,6 +9,40 @@ import (
 	"unsafe"
 )
 
+func mergeRead(t *testing.T, files ...string) io.ReadSeeker {
+	var buf bytes.Buffer
+	for _, f := range files {
+		nf, err := os.Open(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer nf.Close()
+
+		if _, err := buf.ReadFrom(nf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return bytes.NewReader(buf.Bytes())
+}
+
+func TestDecode(t *testing.T) {
+	f := mergeRead(
+		t,
+		"riffhdr.golden",
+		"fmtchunk.golden",
+		"datachunk.golden",
+		"listchunk.golden",
+	)
+	w, err := Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(w.List.SubChunks[3].Text)
+	if got != "foobar" {
+		t.Errorf("got: %s, want: %s", got, "foobar")
+	}
+}
+
 func TestPackRIFF2(t *testing.T) {
 	want, err := ioutil.ReadFile("riffhdr.golden")
 	if err != nil {
