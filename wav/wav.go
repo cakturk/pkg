@@ -123,6 +123,14 @@ func (d *DataChunk) Pack(w io.Writer) error {
 	return ew.err
 }
 
+func (d *DataChunk) PCMReader() io.Reader {
+	panic("not implemented")
+}
+
+func (d *DataChunk) PCMWriter() io.Writer {
+	panic("not implemented")
+}
+
 type ListChunk struct {
 	SubChunkID   [4]byte // LIST
 	SubChunkSize uint32  // payload size after this point
@@ -182,6 +190,10 @@ func (l *ListChunk) ChunkSize() int {
 		total += sc.RawSize()
 	}
 	return total + 4 // 4 bytes for TypeID: INFO
+}
+
+func (l *ListChunk) RawSize() int {
+	return l.ChunkSize() + 8 // ID + Size hdr fields
 }
 
 type InfoChunk struct {
