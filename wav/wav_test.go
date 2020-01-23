@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
-	"unsafe"
 )
 
 func mergeRead(t *testing.T, files ...string) io.ReadSeeker {
@@ -207,56 +206,56 @@ func TestPackListChunk(t *testing.T) {
 // 	t.Errorf("%#+v", dck)
 // }
 
-func TestUnpackList(t *testing.T) {
-	// f, err := os.Open("smp.wav")
-	f, err := os.Open("/tmp/sil/001-qq2.wav")
-	if err != nil {
-		t.Fatal(err)
-	}
-	skip := int64(unsafe.Sizeof(RIFFHdr{}))
-	if skip != 12 {
-		t.Errorf("got: %d, want: %d", skip, 12)
-	}
-	skip += int64(unsafe.Sizeof(FmtChunk{}))
-	if skip != 36 {
-		t.Errorf("got: %d, want: %d", skip, 12)
-	}
-	if _, err := f.Seek(skip, io.SeekStart); err != nil {
-		t.Fatal(err)
-	}
-	var dck DataChunk
-	if err := dck.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Seek(int64(dck.SubChunkSize), io.SeekCurrent); err != nil {
-		t.Fatal(err)
-	}
-	var lck ListChunk
-	if err := lck.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range lck.SubChunks {
-		t.Logf("%s:\t%s", c.ID, c.Text)
-	}
-	// var ick InfoChunk
-	// if err := ick.Unpack(f); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// t.Logf("%s:\t%s", ick.ID, ick.Text)
-	// if err := ick.Unpack(f); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// t.Logf("%s:\t%s", ick.ID, ick.Text)
-	// if err := ick.Unpack(f); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// t.Logf("%s:\t%s", ick.ID, ick.Text)
-	// if err := ick.Unpack(f); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// t.Logf("%s:\t%s", ick.ID, ick.Text)
-	// if err := ick.Unpack(f); err != nil {
-	// 	t.Fatal(err)
-	// }
-	// t.Errorf("%s", ick.Text)
-}
+// func TestUnpackList(t *testing.T) {
+// 	// f, err := os.Open("smp.wav")
+// 	f, err := os.Open("/tmp/sil/001-qq2.wav")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	skip := int64(unsafe.Sizeof(RIFFHdr{}))
+// 	if skip != 12 {
+// 		t.Errorf("got: %d, want: %d", skip, 12)
+// 	}
+// 	skip += int64(unsafe.Sizeof(FmtChunk{}))
+// 	if skip != 36 {
+// 		t.Errorf("got: %d, want: %d", skip, 12)
+// 	}
+// 	if _, err := f.Seek(skip, io.SeekStart); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var dck DataChunk
+// 	if err := dck.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if _, err := f.Seek(int64(dck.SubChunkSize), io.SeekCurrent); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var lck ListChunk
+// 	if err := lck.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	for _, c := range lck.SubChunks {
+// 		t.Logf("%s:\t%s", c.ID, c.Text)
+// 	}
+// 	var ick InfoChunk
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Errorf("%s", ick.Text)
+// }
