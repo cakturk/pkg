@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/siddontang/go/ioutil2"
 )
 
 var (
@@ -39,6 +41,32 @@ type WavFile struct {
 	Fmt  FmtChunk
 	Data DataChunk
 	List *ListChunk
+}
+
+const (
+	RIFFHdrSize  = 12
+	FmtChunkSize = 24
+)
+
+func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
+	hdrWr := ioutil2.NewSectionWriter(&writerAt{w}, 0, RIFFHdrSize)
+	off := wf.Data.size() + RIFFHdrSize + FmtChunkSize
+	if _, err := w.Seek(off, io.SeekStart); err != nil {
+		return 0, err
+	}
+
+	if wf.List != nil {
+		if err := wf.List.Pack(w); err != nil {
+			return 0, err
+		}
+		off += wf.List.size()
+	}
+
+	wf.Hdr.ChunkSize = uint32(off) - 8
+	if err := wf.Hdr.Pack(hdrWr); err != nil {
+		return 0, err
+	}
+	return int64(wf.Hdr.ChunkSize) + 8, nil
 }
 
 func Decode(r io.ReadSeeker) (*WavFile, error) {
@@ -185,6 +213,10 @@ type DataChunk struct {
 	SampleData   []byte
 }
 
+func (d *DataChunk) size() int64 {
+	return int64(d.SubChunkSize + 8)
+}
+
 func (d *DataChunk) Unpack(r io.Reader) error {
 	er := &errReader{r: r}
 	p := make([]byte, 4)
@@ -266,13 +298,13 @@ func (l *ListChunk) Pack(w io.Writer) error {
 	return ew.err
 }
 
-func (l *ListChunk) InfoChunk(name [4]byte) *InfoChunk {
+func (l *ListChunk) InfoChunk(name [4]byte) string {
 	for _, ic := range l.SubChunks {
 		if ic.ID == name {
-			return &ic
+			return string(ic.Text)
 		}
 	}
-	return nil
+	return ""
 }
 
 func (l *ListChunk) ChunkSize() int {
@@ -281,6 +313,13 @@ func (l *ListChunk) ChunkSize() int {
 		total += sc.RawSize()
 	}
 	return total + 4 // 4 bytes for TypeID: INFO
+}
+
+func (l *ListChunk) size() int64 {
+	if l == nil {
+		return 0
+	}
+	return int64(l.SubChunkSize + 8)
 }
 
 func (l *ListChunk) RawSize() int {
@@ -361,4 +400,24 @@ func (ew *errWriter) write(buf []byte) {
 		return
 	}
 	_, ew.err = ew.w.Write(buf)
+}
+
+type writerAt struct {
+	ws io.WriteSeeker
+}
+
+func (w *writerAt) WriteAt(p []byte, off int64) (n int, err error) {
+	if _, err := w.ws.Seek(off, io.SeekStart); err != nil {
+		return 0, err
+	}
+	n, err = w.ws.Write(p)
+	return n, err
+}
+
+func getPos(s io.Seeker) (int64, error) {
+	return s.Seek(0, io.SeekCurrent)
+}
+
+func gotoEnd(s io.Seeker) (int64, error) {
+	return s.Seek(0, io.SeekEnd)
 }
