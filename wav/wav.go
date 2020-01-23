@@ -2,8 +2,36 @@ package wav
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+)
+
+var (
+	RIFF = [4]byte{'R', 'I', 'F', 'F'}
+	WAVE = [4]byte{'W', 'A', 'V', 'E'}
+	LIST = [4]byte{'L', 'I', 'S', 'T'}
+
+	// Copied from go-audio
+	// List of wav chunk names
+	// See http://bwfmetaedit.sourceforge.net/listinfo.html
+	IART    = [4]byte{'I', 'A', 'R', 'T'} // artist
+	ICMT    = [4]byte{'I', 'C', 'M', 'T'} // comments
+	ICOP    = [4]byte{'I', 'C', 'O', 'P'} // copyright
+	ICRD    = [4]byte{'I', 'C', 'R', 'D'} // creationDate
+	IENG    = [4]byte{'I', 'E', 'N', 'G'} // engineer
+	ITCH    = [4]byte{'I', 'T', 'C', 'H'} // technician
+	IGNR    = [4]byte{'I', 'G', 'N', 'R'} // genre
+	IKEY    = [4]byte{'I', 'K', 'E', 'Y'} // keywords
+	IMED    = [4]byte{'I', 'M', 'E', 'D'} // medium
+	INAM    = [4]byte{'I', 'N', 'A', 'M'} // title
+	IPRD    = [4]byte{'I', 'P', 'R', 'D'} // product
+	ISBJ    = [4]byte{'I', 'S', 'B', 'J'} // subject
+	ISFT    = [4]byte{'I', 'S', 'F', 'T'} // software
+	ISRC    = [4]byte{'I', 'S', 'R', 'C'} // source
+	IARL    = [4]byte{'I', 'A', 'R', 'L'} // location
+	ITRK    = [4]byte{'I', 'T', 'R', 'K'} // trackNbr
+	ITRKBug = [4]byte{'i', 't', 'r', 'k'} // trackNbr
 )
 
 type WavFile struct {
@@ -11,23 +39,6 @@ type WavFile struct {
 	Fmt  FmtChunk
 	Data DataChunk
 	List *ListChunk
-}
-
-type RIFFHdr struct {
-	ChunkID   [4]byte // RIFF
-	ChunkSize uint32
-	Fmt       [4]byte // WAVE
-}
-
-func (f *RIFFHdr) Unpack(r io.Reader) error {
-	er := &errReader{r: r}
-	p := make([]byte, 4)
-
-	er.ReadFull(f.ChunkID[:])
-	er.ReadFull(p)
-	f.ChunkSize = binary.LittleEndian.Uint32(p)
-	er.ReadFull(f.Fmt[:])
-	return er.err
 }
 
 func Decode(r io.ReadSeeker) (*WavFile, error) {
@@ -68,6 +79,29 @@ func Decode(r io.ReadSeeker) (*WavFile, error) {
 	return w, nil
 }
 
+type RIFFHdr struct {
+	ChunkID   [4]byte // RIFF
+	ChunkSize uint32
+	Fmt       [4]byte // WAVE
+}
+
+func (f *RIFFHdr) Unpack(r io.Reader) error {
+	er := &errReader{r: r}
+	p := make([]byte, 4)
+
+	er.ReadFull(f.ChunkID[:])
+	if f.ChunkID != RIFF {
+		return errors.New("wav: malformed RIFF header")
+	}
+	er.ReadFull(p)
+	f.ChunkSize = binary.LittleEndian.Uint32(p)
+	er.ReadFull(f.Fmt[:])
+	if f.Fmt != WAVE {
+		return errors.New("wav: malformed WAVE header")
+	}
+	return er.err
+}
+
 func (f *RIFFHdr) Pack(w io.Writer) error {
 	ew := &errWriter{w: w}
 	p := make([]byte, 4)
@@ -95,6 +129,9 @@ func (f *FmtChunk) Pack(w io.Writer) error {
 	p := make([]byte, 4)
 
 	ew.write(f.SubChunkID[:])
+	if string(f.SubChunkID[:]) != "fmt " {
+		return errors.New("wav: malformed fmt chunk header")
+	}
 	binary.LittleEndian.PutUint32(p, f.SubChunkSize)
 	ew.write(p)
 	binary.LittleEndian.PutUint16(p[:2], f.AudioFormat)
@@ -227,6 +264,15 @@ func (l *ListChunk) Pack(w io.Writer) error {
 		}
 	}
 	return ew.err
+}
+
+func (l *ListChunk) InfoChunk(name [4]byte) *InfoChunk {
+	for _, ic := range l.SubChunks {
+		if ic.ID == name {
+			return &ic
+		}
+	}
+	return nil
 }
 
 func (l *ListChunk) ChunkSize() int {
