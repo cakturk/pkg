@@ -73,3 +73,19 @@ func TestTrim(t *testing.T) {
 	}
 	os.Remove("testdata/cropped.wav")
 }
+
+func TestTrim2(t *testing.T) {
+	in, err := os.Open("/tmp/sil/mother_talk.wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	out, err := os.Create("/tmp/sil/cropped.wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer out.Close()
+	if err := Trim2(in, 220*time.Millisecond, 500*time.Millisecond, out); err != nil {
+		t.Fatal(err)
+	}
+}

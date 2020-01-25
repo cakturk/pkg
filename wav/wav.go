@@ -235,7 +235,7 @@ type FmtChunk struct {
 	AudioFormat   uint16
 	NumChans      uint16
 	SampleRate    uint32
-	ByteRate      uint32
+	ByteRate      uint32 // avg bytes per sec
 	BlockAlign    uint16
 	BitsPerSample uint16
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	cwav "github.com/cakturk/pkg/wav"
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 )
@@ -109,4 +110,70 @@ func cutOut(
 		return err
 	}
 	return enc.Close()
+}
+
+func durationReader(src *cwav.WavFile, start, end time.Duration) (io.Reader, error) {
+	off := int64(float64(src.Fmt.ByteRate) * float64(start) / float64(time.Second))
+	if off%2 != 0 {
+		off++
+	}
+	r := src.Data.PCMReader()
+	if _, err := r.Seek(off, io.SeekCurrent); err != nil {
+		return nil, err
+	}
+	count := int64(float64(src.Fmt.ByteRate) * float64(end-start) / float64(time.Second))
+	if count%2 != 0 {
+		count--
+	}
+	return io.LimitReader(r, count), nil
+}
+
+// Trim2 function cuts out the part between the time from `start` to the `stop`
+// out of a wav file
+func Trim2(r io.ReadSeeker, start time.Duration, end time.Duration, w io.WriteSeeker) error {
+	wavSrc, err := cwav.Decode(r)
+	if err != nil {
+		return err
+	}
+	src := wavSrc.Data.PCMReader()
+	if src == nil {
+		return errors.New("trim: nil PCM reader")
+	}
+
+	dur := wavSrc.Duration()
+	if start == -1 {
+		start = 0
+	}
+	if end == -1 {
+		end = dur
+	}
+	if dur < start || dur < end {
+		return fmt.Errorf("trim: start: %s or end: %s not between 0 - %s", start, end, dur)
+	}
+	if start >= end {
+		return fmt.Errorf("trim: start: %s earlier than end: %s", start, end)
+	}
+
+	srcDr, err := durationReader(wavSrc, start, end)
+	if err != nil {
+		return err
+	}
+
+	wavDst, err := cwav.Create(w, int(wavSrc.Fmt.SampleRate))
+	if err != nil {
+		return err
+	}
+	dst := wavDst.Data.PCMWriter()
+	if dst == nil {
+		return errors.New("trim: nil PCM writer")
+	}
+
+	p := make([]byte, 128*1024)
+	if _, err := io.CopyBuffer(dst, srcDr, p); err != nil {
+		return err
+	}
+	if _, err := wavDst.Encode(w); err != nil {
+		return err
+	}
+	return nil
 }
