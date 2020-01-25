@@ -13,6 +13,9 @@ var (
 	RIFF = [4]byte{'R', 'I', 'F', 'F'}
 	WAVE = [4]byte{'W', 'A', 'V', 'E'}
 	LIST = [4]byte{'L', 'I', 'S', 'T'}
+	INFO = [4]byte{'I', 'N', 'F', 'O'}
+	FMT  = [4]byte{'f', 'm', 't', ' '}
+	DATA = [4]byte{'d', 'a', 't', 'a'}
 
 	// Copied from go-audio
 	// List of wav chunk names
@@ -44,8 +47,9 @@ type WavFile struct {
 }
 
 const (
-	RIFFHdrSize  = 12
-	FmtChunkSize = 24
+	RIFFHdrSize      = 12
+	FmtChunkSize     = 24
+	DataChunkHdrSize = 8 // not including PCM samples
 )
 
 func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
