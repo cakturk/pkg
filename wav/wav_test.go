@@ -2,13 +2,12 @@ package wav
 
 import (
 	"bytes"
-	"fmt"
+	"crypto/rand"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"testing"
-	"unsafe"
 
 	"github.com/siddontang/go/ioutil2"
 )
@@ -31,6 +30,79 @@ func mergeBytes(t *testing.T, files ...string) []byte {
 
 func mergeRead(t *testing.T, files ...string) io.ReadSeeker {
 	return bytes.NewReader(mergeBytes(t, files...))
+}
+
+func TestPCMReader(t *testing.T) {
+	parts := []string{
+		"riffhdr.golden",
+		"fmtchunk.golden",
+		"datachunk.golden",
+		"listchunk.golden",
+	}
+	f := mergeRead(t, parts...)
+	wf, err := Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pcm, err := ioutil.ReadAll(wf.Data.PCMReader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	opening := []byte{0x00, 0x00, 0xd4, 0x0f}
+	closing := []byte{0xc0, 0xf9, 0xb0, 0xea}
+	size := 189560
+	if got := len(pcm); got != size {
+		t.Errorf("got: %#02v, want: %#02v", got, size)
+	}
+	if got := pcm[:4]; !bytes.Equal(opening, got) {
+		t.Errorf("got: %#02v, want: %#02v", got, opening)
+	}
+	if got := pcm[len(pcm)-4:]; !bytes.Equal(closing, got) {
+		t.Errorf("got: %#02v, want: %#02v", got, opening)
+	}
+}
+
+func TestCreate(t *testing.T) {
+	f, err := os.Create("new.wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	wf, err := Create(f, 7812)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pcm := wf.Data.PCMWriter()
+	p := make([]byte, 7812*2)
+	if _, err := io.ReadFull(rand.Reader, p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pcm.Write(p); err != nil {
+		t.Fatal(err)
+	}
+	ic := InfoChunk{
+		ID:   IENG,
+		Text: []byte("merry christmas"),
+	}
+	id := InfoChunk{
+		ID:   ITCH,
+		Text: []byte("merry mery christmas"),
+	}
+	ie := InfoChunk{
+		ID:   IGNR,
+		Text: []byte("submarine style"),
+	}
+
+	wf.List = &ListChunk{
+		SubChunkID:   LIST,
+		SubChunkSize: 0,
+		TypeID:       INFO,
+		SubChunks:    nil,
+	}
+	wf.List.SubChunks = append(wf.List.SubChunks, ic, id, ie)
+	if _, err := wf.Encode(f); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestEncode(t *testing.T) {
@@ -269,58 +341,66 @@ func TestPackListChunk(t *testing.T) {
 // 	t.Errorf("%#+v", dck)
 // }
 
-func TestUnpackList(t *testing.T) {
-	// f, err := os.Open("smp.wav")
-	f, err := os.Open("/tmp/sil/001-qq2.wav")
-	if err != nil {
-		t.Fatal(err)
-	}
-	skip := int64(unsafe.Sizeof(RIFFHdr{}))
-	if skip != 12 {
-		t.Errorf("got: %d, want: %d", skip, 12)
-	}
-	skip += int64(unsafe.Sizeof(FmtChunk{}))
-	if skip != 36 {
-		t.Errorf("got: %d, want: %d", skip, 12)
-	}
-	if _, err := f.Seek(skip, io.SeekStart); err != nil {
-		t.Fatal(err)
-	}
-	var dck DataChunk
-	if err := dck.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Seek(int64(dck.SubChunkSize), io.SeekCurrent); err != nil {
-		t.Fatal(err)
-	}
-	var lck ListChunk
-	if err := lck.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range lck.SubChunks {
-		t.Logf("%s:\t%s", c.ID, c.Text)
-	}
-	var ick InfoChunk
-	if err := ick.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%s:\t%s", ick.ID, ick.Text)
-	if err := ick.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%s:\t%s", ick.ID, ick.Text)
-	if err := ick.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%s:\t%s", ick.ID, ick.Text)
-	if err := ick.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%s:\t%s", ick.ID, ick.Text)
-	if err := ick.Unpack(f); err != nil {
-		t.Fatal(err)
-	}
-	t.Errorf("%s", ick.Text)
+// func TestUnpackList(t *testing.T) {
+// 	// f, err := os.Open("smp.wav")
+// 	f, err := os.Open("/tmp/sil/001-qq2.wav")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	skip := int64(unsafe.Sizeof(RIFFHdr{}))
+// 	if skip != 12 {
+// 		t.Errorf("got: %d, want: %d", skip, 12)
+// 	}
+// 	skip += int64(unsafe.Sizeof(FmtChunk{}))
+// 	if skip != 36 {
+// 		t.Errorf("got: %d, want: %d", skip, 12)
+// 	}
+// 	if _, err := f.Seek(skip, io.SeekStart); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var dck DataChunk
+// 	if err := dck.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if _, err := f.Seek(int64(dck.SubChunkSize), io.SeekCurrent); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var lck ListChunk
+// 	if err := lck.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	for _, c := range lck.SubChunks {
+// 		t.Logf("%s:\t%s", c.ID, c.Text)
+// 	}
+// 	var ick InfoChunk
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Logf("%s:\t%s", ick.ID, ick.Text)
+// 	if err := ick.Unpack(f); err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	t.Errorf("%s", ick.Text)
+// }
+
+func getPos(s io.Seeker) (int64, error) {
+	return s.Seek(0, io.SeekCurrent)
+}
+
+func gotoEnd(s io.Seeker) (int64, error) {
+	return s.Seek(0, io.SeekEnd)
 }
 
 func TestAt(t *testing.T) {
@@ -337,7 +417,7 @@ func TestAt(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("pos: %d\n", pos)
+	t.Logf("pos 0: %d\n", pos)
 	defer f.Close()
 	var buf bytes.Buffer
 	if _, err := buf.Write(d); err != nil {
@@ -351,7 +431,7 @@ func TestAt(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("pos: %d\n", pos)
+	t.Logf("pos 1: %d\n", pos)
 	if _, err := f.WriteString("trailer\n"); err != nil {
 		t.Fatal(err)
 	}

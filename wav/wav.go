@@ -44,6 +44,10 @@ type WavFile struct {
 	Fmt  FmtChunk
 	Data DataChunk
 	List *ListChunk
+
+	rifWr io.Writer
+	fmtWr io.Writer
+	datWr io.Writer
 }
 
 const (
@@ -52,14 +56,48 @@ const (
 	DataChunkHdrSize = 8 // not including PCM samples
 )
 
+func (wf *WavFile) writeHdr(w io.Writer) error {
+	if wf.rifWr != nil {
+		w = wf.rifWr
+	}
+	return wf.Hdr.Pack(w)
+}
+
+func (wf *WavFile) writeFmt(w io.Writer) error {
+	if wf.fmtWr != nil {
+		w = wf.fmtWr
+	} else if w == nil {
+		return nil
+	}
+	return wf.Fmt.Pack(w)
+}
+
+func (wf *WavFile) writeDataHdr(w io.Writer) error {
+	if wf.datWr != nil {
+		w = wf.datWr
+	} else if w == nil {
+		return nil
+	}
+	return wf.Data.Pack(w)
+}
+
 func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
-	hdrWr := ioutil2.NewSectionWriter(&writerAt{w}, 0, RIFFHdrSize)
-	off := wf.Data.size() + RIFFHdrSize + FmtChunkSize
-	if _, err := w.Seek(off, io.SeekStart); err != nil {
+	hdrWr := sectionWriter(w, 0, RIFFHdrSize)
+
+	if err := wf.writeFmt(nil); err != nil {
 		return 0, err
 	}
 
+	if err := wf.writeDataHdr(w); err != nil {
+		return 0, err
+	}
+
+	off := wf.Data.size() + RIFFHdrSize + FmtChunkSize
 	if wf.List != nil {
+		// forward to List chunk
+		if _, err := w.Seek(off, io.SeekStart); err != nil {
+			return 0, err
+		}
 		if err := wf.List.Pack(w); err != nil {
 			return 0, err
 		}
@@ -67,10 +105,48 @@ func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
 	}
 
 	wf.Hdr.ChunkSize = uint32(off) - 8
-	if err := wf.Hdr.Pack(hdrWr); err != nil {
+	if err := wf.writeHdr(hdrWr); err != nil {
 		return 0, err
 	}
 	return int64(wf.Hdr.ChunkSize) + 8, nil
+}
+
+func Create(w io.WriteSeeker, sampleRate int) (*WavFile, error) {
+	wf := &WavFile{
+		Hdr: RIFFHdr{
+			ChunkID:   RIFF,
+			ChunkSize: RIFFHdrSize + FmtChunkSize + DataChunkHdrSize - 8,
+			Fmt:       WAVE,
+		},
+		Fmt: FmtChunk{
+			SubChunkID:    FMT,
+			SubChunkSize:  0x10,
+			AudioFormat:   1,
+			NumChans:      1,
+			SampleRate:    uint32(sampleRate),
+			ByteRate:      uint32(sampleRate) * 2,
+			BlockAlign:    2,
+			BitsPerSample: 16,
+		},
+		Data: DataChunk{
+			SubChunkID:   DATA,
+			SubChunkSize: 0,
+		},
+		rifWr: sectionWriter(w, 0, RIFFHdrSize),
+		fmtWr: sectionWriter(w, RIFFHdrSize, FmtChunkSize),
+		datWr: sectionWriter(w, RIFFHdrSize+FmtChunkSize, DataChunkHdrSize),
+	}
+
+	// forward to PCM offset: 44
+	var off int64 = RIFFHdrSize + FmtChunkSize + DataChunkHdrSize
+	if _, err := w.Seek(off, io.SeekStart); err != nil {
+		return nil, err
+	}
+	wf.Data.pcmWr = &pcmWriter{
+		Writer:    w,
+		chunkSize: &wf.Data.SubChunkSize,
+	}
+	return wf, nil
 }
 
 func Decode(r io.ReadSeeker) (*WavFile, error) {
@@ -92,6 +168,9 @@ func Decode(r io.ReadSeeker) (*WavFile, error) {
 	if curOff, err = r.Seek(0, io.SeekCurrent); err != nil {
 		return nil, err
 	}
+
+	w.Data.pcmRd = sectionReader(r, curOff, int64(w.Data.SubChunkSize))
+
 	if endOff, err = r.Seek(0, io.SeekEnd); err != nil {
 		return nil, err
 	}
@@ -215,6 +294,9 @@ type DataChunk struct {
 	SubChunkID   [4]byte // data
 	SubChunkSize uint32
 	SampleData   []byte
+
+	pcmWr io.Writer
+	pcmRd io.Reader
 }
 
 func (d *DataChunk) size() int64 {
@@ -242,11 +324,11 @@ func (d *DataChunk) Pack(w io.Writer) error {
 }
 
 func (d *DataChunk) PCMReader() io.Reader {
-	panic("not implemented")
+	return d.pcmRd
 }
 
 func (d *DataChunk) PCMWriter() io.Writer {
-	panic("not implemented")
+	return d.pcmWr
 }
 
 type ListChunk struct {
@@ -418,10 +500,36 @@ func (w *writerAt) WriteAt(p []byte, off int64) (n int, err error) {
 	return n, err
 }
 
-func getPos(s io.Seeker) (int64, error) {
-	return s.Seek(0, io.SeekCurrent)
+func sectionWriter(ws io.WriteSeeker, off, size int64) io.Writer {
+	var w io.Writer
+	switch v := ws.(type) {
+	case io.WriterAt:
+		w = ioutil2.NewSectionWriter(v, off, size)
+	default:
+		w = ioutil2.NewSectionWriter(&writerAt{ws}, off, size)
+	}
+	return w
 }
 
-func gotoEnd(s io.Seeker) (int64, error) {
-	return s.Seek(0, io.SeekEnd)
+func sectionReader(rs io.ReadSeeker, off, size int64) io.Reader {
+	var r io.Reader
+	switch v := rs.(type) {
+	case io.ReaderAt:
+		r = io.NewSectionReader(v, off, size)
+	default:
+		return nil
+	}
+	return r
+}
+
+type pcmWriter struct {
+	io.Writer
+
+	chunkSize *uint32
+}
+
+func (p *pcmWriter) Write(b []byte) (n int, err error) {
+	n, err = p.Writer.Write(b)
+	*p.chunkSize += uint32(n)
+	return
 }
