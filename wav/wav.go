@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/siddontang/go/ioutil2"
 )
@@ -79,6 +80,10 @@ func (wf *WavFile) writeDataHdr(w io.Writer) error {
 		return nil
 	}
 	return wf.Data.Pack(w)
+}
+
+func (wf *WavFile) Duration() time.Duration {
+	return time.Duration(float64(wf.Data.SubChunkSize) / float64(wf.Fmt.ByteRate) * float64(time.Second))
 }
 
 func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
@@ -296,7 +301,7 @@ type DataChunk struct {
 	SampleData   []byte
 
 	pcmWr io.Writer
-	pcmRd io.Reader
+	pcmRd io.ReadSeeker
 }
 
 func (d *DataChunk) size() int64 {
@@ -323,7 +328,7 @@ func (d *DataChunk) Pack(w io.Writer) error {
 	return ew.err
 }
 
-func (d *DataChunk) PCMReader() io.Reader {
+func (d *DataChunk) PCMReader() io.ReadSeeker {
 	return d.pcmRd
 }
 
@@ -511,15 +516,13 @@ func sectionWriter(ws io.WriteSeeker, off, size int64) io.Writer {
 	return w
 }
 
-func sectionReader(rs io.ReadSeeker, off, size int64) io.Reader {
-	var r io.Reader
+func sectionReader(rs io.ReadSeeker, off, size int64) io.ReadSeeker {
 	switch v := rs.(type) {
 	case io.ReaderAt:
-		r = io.NewSectionReader(v, off, size)
+		return io.NewSectionReader(v, off, size)
 	default:
 		return nil
 	}
-	return r
 }
 
 type pcmWriter struct {

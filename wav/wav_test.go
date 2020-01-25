@@ -12,6 +12,15 @@ import (
 	"github.com/siddontang/go/ioutil2"
 )
 
+var (
+	parts = []string{
+		"riffhdr.golden",
+		"fmtchunk.golden",
+		"datachunk.golden",
+		"listchunk.golden",
+	}
+)
+
 func mergeBytes(t *testing.T, files ...string) []byte {
 	var buf bytes.Buffer
 	for _, f := range files {
@@ -32,13 +41,19 @@ func mergeRead(t *testing.T, files ...string) io.ReadSeeker {
 	return bytes.NewReader(mergeBytes(t, files...))
 }
 
-func TestPCMReader(t *testing.T) {
-	parts := []string{
-		"riffhdr.golden",
-		"fmtchunk.golden",
-		"datachunk.golden",
-		"listchunk.golden",
+func TestDuration(t *testing.T) {
+	f := mergeRead(t, parts...)
+	wf, err := Decode(f)
+	if err != nil {
+		t.Fatal(err)
 	}
+	var want int64 = 12132
+	if got := wf.Duration().Milliseconds(); got != want {
+		t.Errorf("Duration() == %d, want %d", got, want)
+	}
+}
+
+func TestPCMReader(t *testing.T) {
 	f := mergeRead(t, parts...)
 	wf, err := Decode(f)
 	if err != nil {
@@ -106,12 +121,6 @@ func TestCreate(t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
-	parts := []string{
-		"riffhdr.golden",
-		"fmtchunk.golden",
-		"datachunk.golden",
-		"listchunk.golden",
-	}
 	f := mergeRead(t, parts...)
 	wf, err := Decode(f)
 	if err != nil {
