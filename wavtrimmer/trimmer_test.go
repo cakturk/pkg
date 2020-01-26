@@ -89,3 +89,39 @@ func TestTrim2(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func BenchmarkTrim(b *testing.B) {
+	in, err := os.Open("/tmp/sil/001-qq2.wav")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer in.Close()
+	out, err := os.Create("testdata/cropped-old.wav")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer out.Close()
+	err = Trim(in, 3*time.Hour, 4*time.Hour, out)
+	if err != nil {
+		b.Fatalf("Crop(...) failed: %v", err)
+	}
+}
+
+func BenchmarkTrim2(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		in, err := os.Open("/tmp/sil/001-qq2.wav")
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer in.Close()
+		out, err := os.Create("/tmp/sil/cropped.wav")
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer out.Close()
+		if err := Trim2(in, 3*time.Hour, 4*time.Hour, out); err != nil {
+			b.Fatal(err)
+		}
+
+	}
+}
