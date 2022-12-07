@@ -11,8 +11,8 @@ import (
 	"github.com/go-audio/wav"
 )
 
-// Trim function cuts out the part between the time from `start` to the `stop`
-// out of a wav file
+// Trim function cuts samples between the specified time interval (start, end]
+// in a wav file and creates a new wave file with these audio samples.
 func Trim(r io.ReadSeeker, start time.Duration, end time.Duration, w io.WriteSeeker) error {
 	dec := wav.NewDecoder(r)
 	if !dec.IsValidFile() {
@@ -128,8 +128,11 @@ func durationReader(src *cwav.WavFile, start, end time.Duration) (io.Reader, err
 	return io.LimitReader(r, count), nil
 }
 
-// Trim2 function cuts out the part between the time from `start` to the `stop`
-// out of a wav file
+// Trim2 function cuts samples between the specified time interval (start, end]
+// in a wav file and creates a new wave file with these audio samples.
+//
+// Note: This function is a slightly faster version of the original "Trim"
+// function.
 func Trim2(r io.ReadSeeker, start time.Duration, end time.Duration, w io.WriteSeeker) error {
 	wavSrc, err := cwav.Decode(r)
 	if err != nil {

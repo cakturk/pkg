@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	start   = flag.Duration("start", 0, "indicates the starting point")
-	end     = flag.Duration("end", -1, "indicates where to stop")
+	start   = flag.Duration("from", 0, "indicates the starting point")
+	end     = flag.Duration("to", -1, "indicates when to stop")
 	inFile  = flag.String("i", "", "input wav `FILE`: '-' implies stdin")
-	outFile = flag.String("o", "", "put newly cropped portion into this `FILE`: '-' implies stdout")
+	outFile = flag.String("o", "", "put newly cropped samples into this `FILE`: '-' implies stdout")
 )
 
 func run() error {
