@@ -3,7 +3,7 @@ package freq
 import (
 	"time"
 
-	"periph.io/x/periph/conn/physic"
+	"periph.io/x/conn/v3/physic"
 )
 
 type Counter struct {
