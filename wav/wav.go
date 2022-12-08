@@ -1,5 +1,7 @@
 package wav
 
+// http://soundfile.sapp.org/doc/WaveFormat
+// https://ccrma.stanford.edu/courses/422-winter-2014/projects/WaveFormat/
 import (
 	"encoding/binary"
 	"errors"
@@ -116,7 +118,8 @@ func (wf *WavFile) Encode(w io.WriteSeeker) (int64, error) {
 	return int64(wf.Hdr.ChunkSize) + 8, nil
 }
 
-func Create(w io.WriteSeeker, sampleRate int) (*WavFile, error) {
+func Create(w io.WriteSeeker, sampleRate, nchans, nbits int) (*WavFile, error) {
+	blockAlign := uint16(nchans * nbits / 8)
 	wf := &WavFile{
 		Hdr: RIFFHdr{
 			ChunkID:   RIFF,
@@ -127,11 +130,11 @@ func Create(w io.WriteSeeker, sampleRate int) (*WavFile, error) {
 			SubChunkID:    FMT,
 			SubChunkSize:  0x10,
 			AudioFormat:   1,
-			NumChans:      1,
+			NumChans:      uint16(nchans),
 			SampleRate:    uint32(sampleRate),
-			ByteRate:      uint32(sampleRate) * 2,
-			BlockAlign:    2,
-			BitsPerSample: 16,
+			ByteRate:      uint32(sampleRate) * uint32(blockAlign),
+			BlockAlign:    blockAlign,
+			BitsPerSample: uint16(nbits),
 		},
 		Data: DataChunk{
 			SubChunkID:   DATA,
@@ -298,7 +301,6 @@ func (f *FmtChunk) Unpack(r io.Reader) error {
 type DataChunk struct {
 	SubChunkID   [4]byte // data
 	SubChunkSize uint32
-	SampleData   []byte
 
 	pcmWr io.Writer
 	pcmRd io.ReadSeeker

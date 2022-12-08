@@ -34,7 +34,7 @@ func run() error {
 		}
 	}
 	defer ouf.Close()
-	return wavtrimmer.Trim(inf, *start, *end, ouf)
+	return wavtrimmer.Trim2(inf, *start, *end, ouf)
 }
 
 func main() {

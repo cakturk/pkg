@@ -162,7 +162,10 @@ func Trim2(r io.ReadSeeker, start time.Duration, end time.Duration, w io.WriteSe
 		return err
 	}
 
-	wavDst, err := cwav.Create(w, int(wavSrc.Fmt.SampleRate))
+	sampleRate := int(wavSrc.Fmt.SampleRate)
+	bitsPerSample := int(wavSrc.Fmt.BitsPerSample)
+	channels := int(wavSrc.Fmt.NumChans)
+	wavDst, err := cwav.Create(w, sampleRate, channels, bitsPerSample)
 	if err != nil {
 		return err
 	}
