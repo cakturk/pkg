@@ -28,7 +28,7 @@ func run() error {
 	defer inf.Close()
 	ouf := os.Stdout
 	if *outFile != "" && *outFile != "-" {
-		ouf, err = os.Open(*inFile)
+		ouf, err = os.Create(*outFile)
 		if err != nil {
 			return err
 		}
